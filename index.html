@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Laundry System</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f8;
+            padding: 20px;
+        }
+        h2 {
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px #ccc;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+        }
+        button {
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            background: #fafafa;
+        }
+        pre {
+            background: #eee;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+<h2>Create Order</h2>
+<input id="name" placeholder="Name">
+<input id="phone" placeholder="Phone">
+<h3>Add Clothes</h3>
+
+<select id="clothType" onchange="updatePrice()">
+    <option value="">Select Cloth</option>
+    <option value="shirt">Shirt</option>
+    <option value="pants">Pants</option>
+    <option value="saree">Saree</option>
+    <option value="tshirt">T-Shirt</option>
+    <option value="jeans">Jeans</option>
+    <option value="jacket">Jacket</option>
+</select>
+
+<input id="priceDisplay" placeholder="Price" disabled>
+<input id="quantity" type="number" placeholder="Quantity">
+
+
+<button type="button" onclick="addItem()">Add Item</button>
+<ul id="itemList"></ul>
+<p id="liveTotal"></p>
+<button type="button" onclick="createOrder()">Create Order</button>
+<h2>Orders</h2>
+<button onclick="getOrders()">Load Orders</button>
+<div id="orders"></div>
+
+<h2>Dashboard</h2>
+<button onclick="getDashboard()">Load Dashboard</button>
+<pre id="dashboard"></pre>
+
+</div>
+
+<script>
+const BASE = "http://127.0.0.1:5000";
+let items = [];
+const PRICE_LIST = {
+    shirt: 10,
+    pants: 15,
+    saree: 20,
+    tshirt: 8,
+    jeans: 18,
+    jacket: 25
+};
+
+
+function addItem() {
+    const type = document.getElementById("clothType").value;
+    const quantity = parseInt(document.getElementById("quantity").value);
+    
+
+    if (!type || quantity <= 0 ) {
+        alert("Enter valid details");
+        return;
+    }
+
+    items.push({
+        type: type,
+        quantity: quantity
+    });
+    console.log("Items:", items);
+
+    displayItems();
+
+    document.getElementById("clothType").value = "";
+    document.getElementById("quantity").value = "";
+    document.getElementById("priceDisplay").value = "";
+    
+}
+
+function displayItems() {
+    let html = "";
+    let totalSum = 0;
+    items.forEach((item,index) => {
+        const price = PRICE_LIST[item.type];
+        const total = item.quantity * price;
+        totalSum += total;
+
+        html += `<li>${item.type} - ${item.quantity} × ₹${price} = ₹${total}<button onclick="removeItem(${index})">❌</button></li>`;
+    });
+    document.getElementById("itemList").innerHTML = html;
+    document.getElementById("liveTotal").innerText = "Total: ₹" + totalSum;
+}
+function removeItem(index) {
+    items.splice(index, 1);  
+    displayItems();          
+}
+
+function createOrder() {
+
+    if (items.length === 0) {
+        alert("Add at least one item");
+        return;
+    }
+
+    fetch(BASE + "/create_order", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            name: document.getElementById("name").value,
+            phone: document.getElementById("phone").value,
+            items: items
+        })
+    })
+    .then(res => res.json())
+    .then(() => {
+        alert("Order Created");
+        items = [];
+        displayItems();
+        getOrders();
+        getDashboard();
+    });
+}
+
+
+function getOrders() {
+    fetch(BASE + "/orders")
+    .then(res => res.json())
+    .then(data => {
+        let html = "";
+        data.forEach(order => {
+            let itemsText = "";
+
+            order.items.forEach(item => {
+
+                itemsText += `${item.type} (${item.quantity}) - ₹${item.quantity * item.price}<br>`;
+            });
+            html += `
+            <div class="card">
+                <b>Name:</b> ${order.name} <br>
+                <b>Items:</b> ${itemsText}
+                <b>Total:</b> ₹${order.total} <br>
+                <b>Status:</b> ${order.status} <br>
+                <button onclick="updateStatus('${order.id}')">Mark Ready</button>
+            </div>`;
+        });
+        document.getElementById("orders").innerHTML = html;
+    });
+}
+function updatePrice() {
+    const type = document.getElementById("clothType").value;
+    const price = PRICE_LIST[type] || "";
+
+    document.getElementById("priceDisplay").value = price;
+}
+
+function updateStatus(id) {
+    fetch(BASE + "/update_status/" + id, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({status: "READY"})
+    })
+    .then(res => res.json())
+    .then(() => {
+        getOrders();
+        getDashboard();
+    });
+}
+
+function getDashboard() {
+    fetch(BASE + "/dashboard")
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("dashboard").innerHTML =
+            "<b>Total Orders:</b> " + data.total_orders + "<br>" +
+            "<b>Revenue:</b> ₹" + data.revenue + "<br>" +
+            "<b>Status:</b> " + JSON.stringify(data.status_counts);
+    });
+}
+</script>
+
+</body>
+</html>
